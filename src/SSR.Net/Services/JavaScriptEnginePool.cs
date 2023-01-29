@@ -33,11 +33,16 @@ namespace SSR.Net.Services
             return this;
         }
 
-        public string EvaluateJs(string js, int timeoutMs = 200)
+        public string EvaluateJs(string js,
+                                 int timeoutMs = 200,
+                                 bool returnNullInsteadOfException = false)
         {
             var engine = GetEngine(timeoutMs);
-            if (engine is null) throw new Exception($"Could not get engine withing {timeoutMs}ms");
-            return engine.EvaluateAndRelease(js);
+            if (!(engine is null))
+                return engine.EvaluateAndRelease(js);
+            if (returnNullInsteadOfException)
+                return null;
+            throw new Exception($"Could not get engine withing {timeoutMs}ms");
         }
 
         private JavaScriptEngine GetEngine(int timeoutMs)
@@ -51,11 +56,13 @@ namespace SSR.Net.Services
                     RemoveDepletedEngines();
                     RefillToMinEngines();
                     EnsureEnoughStandbyEngines();
-                    JavaScriptEngine engine = TryToFindReadyEngine();
+                    var engine = TryToFindReadyEngine();
                     if (engine != null)
                     {
                         Console.WriteLine($"Loop took {sw2.ElapsedMilliseconds} ({sw2.ElapsedTicks} ticks)");
-                        return engine.Lease();
+                        var result = engine.Lease();
+                        EnsureEnoughStandbyEngines();//We ensure that there are enough standby engines after the lease
+                        return result;
                     }
                 }
                 Console.WriteLine($"Loop took {sw2.ElapsedMilliseconds} ({sw2.ElapsedTicks} ticks)");

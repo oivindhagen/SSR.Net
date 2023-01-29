@@ -47,12 +47,14 @@ namespace SSR.Net.Tester
 
         private void button1_Click(object sender, EventArgs e)
         {
-            Task t = new Task(() => {
+            Task t = new Task(() =>
+            {
                 try
                 {
-                    var res = _jsep.EvaluateJs(JS.Text);
+                    var res = _jsep.EvaluateJs(JS.Text, returnNullInsteadOfException: true);
 
-                }catch(Exception ex)
+                }
+                catch (Exception ex)
                 {
 
                 }

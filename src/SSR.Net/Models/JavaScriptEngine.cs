@@ -13,24 +13,23 @@ namespace SSR.Net.Models
         public int UsageCount { get; private set; } = 0;
         private JavaScriptEngineState _state;
         private bool _depleted = false;
-        private Task _instantiator;
+        private Task _initializer;
         public DateTime Instantiated { get; private set; }
 
-        public JavaScriptEngine(Func<IJsEngine> createFunction, int maxUsages, int garbageCollectionInterval, int bundleNumber)
+        public JavaScriptEngine(Func<IJsEngine> createEngine, int maxUsages, int garbageCollectionInterval, int bundleNumber)
         {
             _maxUsages = maxUsages;
             BundleNumber = bundleNumber;
             Instantiated = DateTime.UtcNow;
             _garbageCollectionInterval = garbageCollectionInterval;
             _state = JavaScriptEngineState.Uninitialized;
-            _instantiator = new Task(() =>
+            _initializer = new Task(() =>
             {
-                _engine = createFunction();
+                _engine = createEngine();
                 _state = JavaScriptEngineState.Ready;
             });
-            _instantiator.Start();
+            _initializer.Start();
         }
-
 
         public JavaScriptEngineState GetState() => _depleted ? JavaScriptEngineState.Depleted : _state;
 
@@ -55,7 +54,7 @@ namespace SSR.Net.Models
             try
             {
                 result = _engine.Evaluate<string>(script);
-                System.Threading.Thread.Sleep(600);
+                System.Threading.Thread.Sleep(1000);
             }
             finally
             {
@@ -82,7 +81,7 @@ namespace SSR.Net.Models
 
         public void Dispose()
         {
-            _instantiator.Wait();
+            _initializer.Wait();
             _engine.Dispose();
         }
 

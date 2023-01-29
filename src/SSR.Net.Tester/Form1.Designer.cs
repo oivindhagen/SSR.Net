@@ -66,6 +66,7 @@
             this.JS.Name = "JS";
             this.JS.Size = new System.Drawing.Size(426, 232);
             this.JS.TabIndex = 2;
+            this.JS.Text = "Test(5)";
             // 
             // Result
             // 
