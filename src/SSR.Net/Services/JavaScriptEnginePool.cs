@@ -17,9 +17,8 @@ namespace SSR.Net.Services
         private int _maxEngines = 25;
         private int _maxUsages = 100;
         private int _garbageCollectionInterval = 20;
-        private int _StandbyEngineTargetCount = 3;
-        private List<JavaScriptEngine> _engines = new List<JavaScriptEngine>();//Active engines in use
-        private List<JavaScriptEngine> _standbyEngines = new List<JavaScriptEngine>();//Engines on standby
+        private int _standbyEngineTargetCount = 3;
+        private List<JavaScriptEngine> _engines = new List<JavaScriptEngine>();
         private object _lock = new object();
         private int _bundleNumber = 0;
         private JsEngineSwitcher _jsEngineSwitcher;
@@ -44,61 +43,53 @@ namespace SSR.Net.Services
         private JavaScriptEngine GetEngine(int timeoutMs)
         {
             var sw = Stopwatch.StartNew();
-            lock (_lock)
+            while (sw.ElapsedMilliseconds < timeoutMs)
             {
-                RemoveDepletedEngines();
-                TryToRefillToMinEnginesWithStandbyEngines();
-                var idealUsageGap = CalculateIdealUsageGapBetweenEngines();
-                JavaScriptEngine engine = null;
-                while (sw.ElapsedMilliseconds < timeoutMs)
+                var sw2 = Stopwatch.StartNew();
+                lock (_lock)
                 {
-                    engine = TryToFindReadyEngineAmongRunningEngines(idealUsageGap);
-                    if (engine is null && _engines.Count() < _maxEngines)
-                        engine = TryToActivateStandbyEngine();
+                    RemoveDepletedEngines();
+                    RefillToMinEngines();
+                    EnsureEnoughStandbyEngines();
+                    JavaScriptEngine engine = TryToFindReadyEngine();
                     if (engine != null)
                     {
-                        Console.WriteLine("Leasing took " + sw.ElapsedMilliseconds + "ms");
+                        Console.WriteLine($"Loop took {sw2.ElapsedMilliseconds} ({sw2.ElapsedTicks} ticks)");
                         return engine.Lease();
                     }
-                    Console.WriteLine("Leasing took " + sw.ElapsedMilliseconds + "ms, but no engine was found");
-                    Thread.Sleep(5);
                 }
+                Console.WriteLine($"Loop took {sw2.ElapsedMilliseconds} ({sw2.ElapsedTicks} ticks)");
+                Thread.Sleep(5);
             }
             Console.WriteLine("Leasing took " + sw.ElapsedMilliseconds + "ms, but no engine was found");
             return null;
         }
 
-        private int CalculateIdealUsageGapBetweenEngines() =>
-            Math.Max(_maxUsages / Math.Max(_engines.Count, 1), 1);
-
-        private JavaScriptEngine TryToFindReadyEngineAmongRunningEngines(int idealUsageGap)
+        private void EnsureEnoughStandbyEngines()
         {
-            JavaScriptEngine candidate = null;
-            var previousUsage = _maxUsages;
-            foreach (var engine in GetEnginesSortedByUsageThenAge())
-            {
-                //We try to space out the engine usage count to even out the GC and initialization
-                if (engine.UsageCount + idealUsageGap < previousUsage)
-                {
-                    if (engine.IsReady)
-                        return engine;
-                }
-                //We use the first ready engine we find as a fallback
-                else if (candidate is null && engine.IsReady)
-                    candidate = engine;
-                previousUsage = engine.UsageCount;
-            }
-
-            return candidate;
+            var neededStandbyEngines = _standbyEngineTargetCount - _engines.Count(e => !e.IsDepleted && !e.IsLeased);
+            if (neededStandbyEngines <= 0)
+                return;
+            var maxNewStandbyEngines = _maxEngines - _engines.Count();
+            var toInstantiate = Math.Min(neededStandbyEngines, maxNewStandbyEngines);
+            for (int i = 0; i < toInstantiate; ++i)
+                AddNewJsEngine();
         }
 
-        private JavaScriptEngine[] GetEnginesSortedByUsageThenAge() => 
-            _engines.OrderByDescending(e => e.UsageCount).ThenBy(e => e.Instantiated).ToArray();
+        private JavaScriptEngine TryToFindReadyEngine() =>
+            GetEnginesSortedByUsageThenAge()
+                .FirstOrDefault(e => e.IsReady);
 
-        private void TryToRefillToMinEnginesWithStandbyEngines()
+        private JavaScriptEngine[] GetEnginesSortedByUsageThenAge() =>
+            _engines
+                .OrderByDescending(e => e.UsageCount)
+                .ThenBy(e => e.Instantiated)
+                .ToArray();
+
+        private void RefillToMinEngines()
         {
             while (_engines.Count() < _minEngines)
-                if (TryToActivateStandbyEngine() is null) break;
+                AddNewJsEngine();
         }
 
         private void RemoveDepletedEngines()
@@ -111,18 +102,6 @@ namespace SSR.Net.Services
             });
         }
 
-        private JavaScriptEngine TryToActivateStandbyEngine()
-        {
-            JavaScriptEngine candidate = _standbyEngines.First(e => e.IsReady);
-            if (candidate != null)
-            {
-                _standbyEngines.Remove(candidate);
-                _engines.Add(candidate);
-                _standbyEngines.Add(CreateJsEngine());//This engine will initialize on a background thread
-            }
-            return candidate;
-        }
-
         public JavaScriptEnginePool Start()
         {
             lock (_lock)
@@ -132,12 +111,8 @@ namespace SSR.Net.Services
                 _activeScripts = _stagedScripts;
                 _stagedScripts = new List<string>();
                 _bundleNumber++;
-                _standbyEngines.ForEach(e => e.Dispose());
-                _standbyEngines.Clear();
                 for (int i = 0; i < _minEngines; ++i)
-                    _engines.Add(CreateJsEngine());
-                for (int i = 0; i < _StandbyEngineTargetCount; ++i)
-                    _standbyEngines.Add(CreateJsEngine());
+                    AddNewJsEngine();
                 IsStarted = true;
             }
             return this;
@@ -161,24 +136,21 @@ namespace SSR.Net.Services
             return this;
         }
 
-        private JavaScriptEngine CreateJsEngine() =>
-            new JavaScriptEngine(() =>
+        private void AddNewJsEngine() =>
+            _engines.Add(new JavaScriptEngine(() =>
             {
                 var jsEngine = _jsEngineSwitcher.CreateDefaultEngine();
                 _activeScripts.ForEach(s => jsEngine.Execute(s));
                 return jsEngine;
-            }, _maxUsages, _garbageCollectionInterval, _bundleNumber);
+            }, _maxUsages, _garbageCollectionInterval, _bundleNumber));
 
         public string GetStats()
         {
             var sb = new StringBuilder();
-            sb.AppendLine("Engines:");
+            sb.AppendLine($"Engines ({_engines.Count})");
             lock (_lock)
             {
                 foreach (var engine in _engines)
-                    sb.AppendLine($"{engine.GetState()}, {engine.Instantiated.Second - DateTime.UtcNow.Second}, {engine.UsageCount}, {engine.BundleNumber}");
-                sb.AppendLine("Standby engines");
-                foreach (var engine in _standbyEngines)
                     sb.AppendLine($"{engine.GetState()}, {engine.Instantiated.Second - DateTime.UtcNow.Second}, {engine.UsageCount}, {engine.BundleNumber}");
             }
             return sb.ToString();
