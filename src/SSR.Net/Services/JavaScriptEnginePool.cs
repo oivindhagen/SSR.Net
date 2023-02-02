@@ -13,23 +13,46 @@ namespace SSR.Net.Services
     {
         private List<string> _activeScripts;
         private List<string> _stagedScripts = new List<string>();
-        private int _minEngines = 5;
+        private List<JavaScriptEngine> _engines = new List<JavaScriptEngine>();
+        private JsEngineSwitcher _jsEngineSwitcher;
+        private int _bundleNumber = 0;
+        private int _garbageCollectionInterval = 20;
         private int _maxEngines = 25;
         private int _maxUsages = 100;
-        private int _garbageCollectionInterval = 20;
+        private int _minEngines = 5;
         private int _standbyEngineTargetCount = 3;
-        private List<JavaScriptEngine> _engines = new List<JavaScriptEngine>();
         private object _lock = new object();
-        private int _bundleNumber = 0;
-        private JsEngineSwitcher _jsEngineSwitcher;
+
         public bool IsStarted { get; private set; }
 
         public JavaScriptEnginePool AddScript(string script)
         {
             lock (_lock)
-            {
                 _stagedScripts.Add(script);
-            }
+            return this;
+        }
+
+        public JavaScriptEnginePool WithMaxEngineCount(int maxEngines)
+        {
+            _maxEngines = maxEngines;
+            return this;
+        }
+
+        public JavaScriptEnginePool WithMinEngineCount(int minEngines)
+        {
+            _minEngines = minEngines;
+            return this;
+        }
+
+        public JavaScriptEnginePool WithMaxUsagesCount(int maxUsages)
+        {
+            _maxUsages = maxUsages;
+            return this;
+        }
+
+        public JavaScriptEnginePool WithGarbageCollectionInterval(int garbageCollectionInterval)
+        {
+            _garbageCollectionInterval = garbageCollectionInterval;
             return this;
         }
 
@@ -90,24 +113,20 @@ namespace SSR.Net.Services
         private JavaScriptEngine[] GetEnginesSortedByUsageThenAge() =>
             _engines
                 .OrderByDescending(e => e.UsageCount)
-                .ThenBy(e => e.Instantiated)
+                .ThenBy(e => e.InstantiationTime)
                 .ToArray();
 
         private void RefillToMinEngines()
         {
-            while (_engines.Count() < _minEngines)
+            while (_engines.Count < _minEngines)
                 AddNewJsEngine();
         }
 
-        private void RemoveDepletedEngines()
-        {
-            var toRemove = _engines.Where(e => e.IsDepleted).ToList();
-            toRemove.ForEach(e =>
-            {
-                _engines.Remove(e);
-                e.Dispose();
-            });
-        }
+        private void RemoveDepletedEngines() =>
+            _engines
+                .Where(e => e.IsDepleted)
+                .ToList()
+                .ForEach(e => { _engines.Remove(e); e.Dispose(); });
 
         public JavaScriptEnginePool Start()
         {
@@ -125,29 +144,11 @@ namespace SSR.Net.Services
             return this;
         }
 
-        public JavaScriptEnginePool WithMaxEngineCount(int maxEngines)
-        {
-            _maxEngines = maxEngines;
-            return this;
-        }
-
-        public JavaScriptEnginePool WithMinEngineCount(int minEngines)
-        {
-            _minEngines = minEngines;
-            return this;
-        }
-
-        public JavaScriptEnginePool WithMaxUsagesCount(int maxUsages)
-        {
-            _maxUsages = maxUsages;
-            return this;
-        }
-
         private void AddNewJsEngine() =>
             _engines.Add(new JavaScriptEngine(() =>
             {
                 var jsEngine = _jsEngineSwitcher.CreateDefaultEngine();
-                _activeScripts.ForEach(s => jsEngine.Execute(s));
+                _activeScripts.ForEach(jsEngine.Execute);
                 return jsEngine;
             }, _maxUsages, _garbageCollectionInterval, _bundleNumber));
 
@@ -158,7 +159,7 @@ namespace SSR.Net.Services
             lock (_lock)
             {
                 foreach (var engine in _engines)
-                    sb.AppendLine($"{engine.GetState()}, {engine.Instantiated.Second - DateTime.UtcNow.Second}, {engine.UsageCount}, {engine.BundleNumber}");
+                    sb.AppendLine($"{engine.GetState()}, {engine.InstantiationTime.Second - DateTime.UtcNow.Second}, {engine.UsageCount}, {engine.BundleNumber}");
             }
             return sb.ToString();
         }

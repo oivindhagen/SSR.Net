@@ -7,28 +7,29 @@ namespace SSR.Net.Models
     public class JavaScriptEngine : IDisposable
     {
         private IJsEngine _engine;
-        private readonly int _maxUsages;
-        public readonly int BundleNumber;
-        private readonly int _garbageCollectionInterval;
-        public int UsageCount { get; private set; } = 0;
         private JavaScriptEngineState _state;
-        private bool _depleted = false;
+        private readonly int _maxUsages;
+        private readonly int _garbageCollectionInterval;
+        public int BundleNumber { get; }
+        public int UsageCount { get; private set; }
+        private bool _depleted;
         private Task _initializer;
-        public DateTime Instantiated { get; private set; }
+        public DateTime InstantiationTime { get; private set; }
+        public DateTime InitializedTime { get; private set; }
 
         public JavaScriptEngine(Func<IJsEngine> createEngine, int maxUsages, int garbageCollectionInterval, int bundleNumber)
         {
             _maxUsages = maxUsages;
             BundleNumber = bundleNumber;
-            Instantiated = DateTime.UtcNow;
+            InstantiationTime = DateTime.UtcNow;
             _garbageCollectionInterval = garbageCollectionInterval;
             _state = JavaScriptEngineState.Uninitialized;
-            _initializer = new Task(() =>
+            _initializer = Task.Run(() =>
             {
                 _engine = createEngine();
                 _state = JavaScriptEngineState.Ready;
+                InitializedTime = DateTime.UtcNow;
             });
-            _initializer.Start();
         }
 
         public JavaScriptEngineState GetState() => _depleted ? JavaScriptEngineState.Depleted : _state;
@@ -48,28 +49,28 @@ namespace SSR.Net.Models
 
         public string EvaluateAndRelease(string script)
         {
-            if (!IsLeased)
-                throw new InvalidOperationException($"Cannot evaluate script on engine in state {script}");
+            //This engine instance might be depleted if the pool was restarted, but the engine should finish
+            //its render to avoid 500 errors on the web
+            if (_state != JavaScriptEngineState.Leased)
+                throw new InvalidOperationException($"Cannot evaluate script on engine in state {GetState()}");
             string result;
             try
             {
                 result = _engine.Evaluate<string>(script);
-                System.Threading.Thread.Sleep(1000);
             }
             finally
             {
 
                 if (UsageCount >= _maxUsages)
                     _depleted = true;
-                else if (UsageCount % _garbageCollectionInterval == 0 && UsageCount > 0)
+                else if (UsageCount % _garbageCollectionInterval == 0)
                 {
                     _state = JavaScriptEngineState.RequiresGarbageCollection;
-                    Task t = new Task(() =>
+                    Task.Run(() =>
                     {
                         RunGarbageCollection();
                         _state = JavaScriptEngineState.Ready;
                     });
-                    t.Start();
                 }
                 else
                 {

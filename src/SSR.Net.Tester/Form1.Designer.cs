@@ -61,7 +61,7 @@
             // 
             // JS
             // 
-            this.JS.Location = new System.Drawing.Point(244, 41);
+            this.JS.Location = new System.Drawing.Point(231, 14);
             this.JS.Multiline = true;
             this.JS.Name = "JS";
             this.JS.Size = new System.Drawing.Size(426, 232);
@@ -70,7 +70,7 @@
             // 
             // Result
             // 
-            this.Result.Location = new System.Drawing.Point(244, 279);
+            this.Result.Location = new System.Drawing.Point(231, 252);
             this.Result.Name = "Result";
             this.Result.Size = new System.Drawing.Size(426, 20);
             this.Result.TabIndex = 3;
@@ -82,7 +82,7 @@
             // 
             // Stats
             // 
-            this.Stats.Location = new System.Drawing.Point(721, 43);
+            this.Stats.Location = new System.Drawing.Point(708, 16);
             this.Stats.Multiline = true;
             this.Stats.Name = "Stats";
             this.Stats.Size = new System.Drawing.Size(444, 548);
