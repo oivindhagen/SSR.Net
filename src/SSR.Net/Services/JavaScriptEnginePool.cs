@@ -4,61 +4,35 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading;
 
 namespace SSR.Net.Services
 {
-    public class JavaScriptEnginePool
+    public class JavaScriptEnginePool : IJavaScriptEnginePool
     {
-        private List<string> _activeScripts;
-        private List<string> _stagedScripts = new List<string>();
-        private List<JavaScriptEngine> _engines = new List<JavaScriptEngine>();
-        private JsEngineSwitcher _jsEngineSwitcher;
-        private int _bundleNumber = 0;
-        private int _garbageCollectionInterval = 20;
-        private int _maxEngines = 25;
-        private int _maxUsages = 100;
-        private int _minEngines = 5;
-        private int _standbyEngineTargetCount = 3;
-        private object _lock = new object();
+        protected List<string> Scripts;
+        protected List<JavaScriptEngine> Engines = new List<JavaScriptEngine>();
+        protected JsEngineSwitcher JsEngineSwitcher;
+        protected int BundleNumber = 0;
+        protected int GarbageCollectionInterval = 20;
+        protected int MaxEngines = 25;
+        protected int MaxUsages = 100;
+        protected int MinEngines = 5;
+        protected int StandbyEngineCount = 3;
+        protected object Lock = new object();
+        public bool IsStarted { get; protected set; }
 
-        public bool IsStarted { get; private set; }
-
-        public JavaScriptEnginePool AddScript(string script)
+        public JavaScriptEnginePool(IJsEngineFactory jsEngineFactory, Func<JavaScriptEnginePoolConfig, JavaScriptEnginePoolConfig> config)
         {
-            lock (_lock)
-                _stagedScripts.Add(script);
-            return this;
+            JsEngineSwitcher = new JsEngineSwitcher();
+            JsEngineSwitcher.EngineFactories.Add(jsEngineFactory);
+            JsEngineSwitcher.DefaultEngineName = jsEngineFactory.EngineName;
+            Reconfigure(config);
         }
 
-        public JavaScriptEnginePool WithMaxEngineCount(int maxEngines)
-        {
-            _maxEngines = maxEngines;
-            return this;
-        }
-
-        public JavaScriptEnginePool WithMinEngineCount(int minEngines)
-        {
-            _minEngines = minEngines;
-            return this;
-        }
-
-        public JavaScriptEnginePool WithMaxUsagesCount(int maxUsages)
-        {
-            _maxUsages = maxUsages;
-            return this;
-        }
-
-        public JavaScriptEnginePool WithGarbageCollectionInterval(int garbageCollectionInterval)
-        {
-            _garbageCollectionInterval = garbageCollectionInterval;
-            return this;
-        }
-
-        public string EvaluateJs(string js,
-                                 int timeoutMs = 200,
-                                 bool returnNullInsteadOfException = false)
+        public virtual string EvaluateJs(string js,
+                                         int timeoutMs = 200,
+                                         bool returnNullInsteadOfException = false)
         {
             var engine = GetEngine(timeoutMs);
             if (!(engine is null))
@@ -68,13 +42,29 @@ namespace SSR.Net.Services
             throw new Exception($"Could not get engine withing {timeoutMs}ms");
         }
 
-        private JavaScriptEngine GetEngine(int timeoutMs)
+        public virtual string EvaluateJsAsync(string js, string resultVariableName, int asyncTimeoutMs = 200, int timeoutMs = 200, bool returnNullInsteadOfException = false)
+        {
+            var engine = GetEngine(timeoutMs);
+            if (engine is null)
+            {
+                if (returnNullInsteadOfException)
+                    return null;
+                throw new Exception($"Could not get engine withing {timeoutMs}ms");
+            }
+            var result = engine.EvaluateAsyncAndRelease(js, resultVariableName, asyncTimeoutMs);
+            if (!string.IsNullOrEmpty(result))
+                return result;
+            if (returnNullInsteadOfException) return null;
+            throw new Exception($"Could not evaluate async result within {asyncTimeoutMs}ms");
+        }
+
+        protected virtual JavaScriptEngine GetEngine(int timeoutMs)
         {
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < timeoutMs)
             {
                 var sw2 = Stopwatch.StartNew();
-                lock (_lock)
+                lock (Lock)
                 {
                     RemoveDepletedEngines();
                     RefillToMinEngines();
@@ -95,80 +85,83 @@ namespace SSR.Net.Services
             return null;
         }
 
-        private void EnsureEnoughStandbyEngines()
+        protected virtual void EnsureEnoughStandbyEngines()
         {
-            var neededStandbyEngines = _standbyEngineTargetCount - _engines.Count(e => !e.IsDepleted && !e.IsLeased);
+            var neededStandbyEngines = StandbyEngineCount - Engines.Count(e => !e.IsDepleted && !e.IsLeased);
             if (neededStandbyEngines <= 0)
                 return;
-            var maxNewStandbyEngines = _maxEngines - _engines.Count();
+            var maxNewStandbyEngines = MaxEngines - Engines.Count();
             var toInstantiate = Math.Min(neededStandbyEngines, maxNewStandbyEngines);
             for (int i = 0; i < toInstantiate; ++i)
                 AddNewJsEngine();
         }
 
-        private JavaScriptEngine TryToFindReadyEngine() =>
+        protected virtual JavaScriptEngine TryToFindReadyEngine() =>
             GetEnginesSortedByUsageThenAge()
                 .FirstOrDefault(e => e.IsReady);
 
-        private JavaScriptEngine[] GetEnginesSortedByUsageThenAge() =>
-            _engines
+        protected virtual JavaScriptEngine[] GetEnginesSortedByUsageThenAge() =>
+            Engines
                 .OrderByDescending(e => e.UsageCount)
                 .ThenBy(e => e.InstantiationTime)
                 .ToArray();
 
-        private void RefillToMinEngines()
+        protected virtual void RefillToMinEngines()
         {
-            while (_engines.Count < _minEngines)
+            while (Engines.Count < MinEngines)
                 AddNewJsEngine();
         }
 
-        private void RemoveDepletedEngines() =>
-            _engines
+        protected virtual void RemoveDepletedEngines() =>
+            Engines
                 .Where(e => e.IsDepleted)
                 .ToList()
-                .ForEach(e => { _engines.Remove(e); e.Dispose(); });
+                .ForEach(e => { Engines.Remove(e); e.Dispose(); });
 
-        public JavaScriptEnginePool Start()
+        public virtual JavaScriptEnginePool Reconfigure(Func<JavaScriptEnginePoolConfig, JavaScriptEnginePoolConfig> config)
         {
-            lock (_lock)
+            var builtConfig = config(new JavaScriptEnginePoolConfig());
+            builtConfig.Validate();
+            lock (Lock)
             {
-                _engines.Where(e => !e.IsLeased).ToList().ForEach(e => { _engines.Remove(e); e.Dispose(); });
-                _engines.ForEach(e => e.SetDepleted());
-                _activeScripts = _stagedScripts;
-                _stagedScripts = new List<string>();
-                _bundleNumber++;
-                for (int i = 0; i < _minEngines; ++i)
+                Engines.Where(e => !e.IsLeased).ToList().ForEach(e => { Engines.Remove(e); e.Dispose(); });
+                Engines.ForEach(e => e.SetDepleted());
+                MaxUsages = builtConfig.MaxUsages;
+                MaxEngines = builtConfig.MaxEngines;
+                MinEngines = builtConfig.MinEngines;
+                Scripts = builtConfig.Scripts;
+                StandbyEngineCount = builtConfig.StandbyEngineCount;
+                GarbageCollectionInterval = builtConfig.GarbageCollectionInterval;
+                BundleNumber++;
+                for (int i = 0; i < MinEngines; ++i)
                     AddNewJsEngine();
                 IsStarted = true;
             }
             return this;
         }
 
-        private void AddNewJsEngine() =>
-            _engines.Add(new JavaScriptEngine(() =>
+        protected virtual void AddNewJsEngine() =>
+            Engines.Add(new JavaScriptEngine(() =>
             {
-                var jsEngine = _jsEngineSwitcher.CreateDefaultEngine();
-                _activeScripts.ForEach(jsEngine.Execute);
+                var jsEngine = JsEngineSwitcher.CreateDefaultEngine();
+                Scripts.ForEach(jsEngine.Execute);
                 return jsEngine;
-            }, _maxUsages, _garbageCollectionInterval, _bundleNumber));
+            }, MaxUsages, GarbageCollectionInterval, BundleNumber));
 
-        public string GetStats()
+        public virtual JavaScriptEnginePoolStats GetStats()
         {
-            var sb = new StringBuilder();
-            sb.AppendLine($"Engines ({_engines.Count})");
-            lock (_lock)
-            {
-                foreach (var engine in _engines)
-                    sb.AppendLine($"{engine.GetState()}, {engine.InstantiationTime.Second - DateTime.UtcNow.Second}, {engine.UsageCount}, {engine.BundleNumber}");
-            }
-            return sb.ToString();
-        }
-
-        public JavaScriptEnginePool(IJsEngineFactory jsEngineFactory)
-        {
-            _jsEngineSwitcher = new JsEngineSwitcher();
-            _jsEngineSwitcher.EngineFactories.Add(jsEngineFactory);
-            _jsEngineSwitcher.DefaultEngineName = jsEngineFactory.EngineName;
+            var result = new JavaScriptEnginePoolStats();
+            result.EngineCount = Engines.Count;
+            foreach (var engine in Engines)
+                result.EngineStats.Add(new JavaScriptEngineStats
+                {
+                    BundleNumber = engine.BundleNumber,
+                    InitializedTime = engine.InitializedTime,
+                    InstantiatedTime = engine.InstantiationTime,
+                    State = engine.GetState(),
+                    UsageCount = engine.UsageCount
+                });
+            return result;
         }
     }
 }

@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "vue": "^3.2.47"
+  },
+  "scripts": {
+    "build": "node ./build.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.17.7",
+    "esbuild-plugin-vue3": "^0.3.2"
+  }
+}
