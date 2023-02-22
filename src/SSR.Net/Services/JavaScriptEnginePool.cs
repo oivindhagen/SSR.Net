@@ -63,7 +63,6 @@ namespace SSR.Net.Services
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < timeoutMs)
             {
-                var sw2 = Stopwatch.StartNew();
                 lock (Lock)
                 {
                     RemoveDepletedEngines();
@@ -72,16 +71,14 @@ namespace SSR.Net.Services
                     var engine = TryToFindReadyEngine();
                     if (engine != null)
                     {
-                        Console.WriteLine($"Loop took {sw2.ElapsedMilliseconds} ({sw2.ElapsedTicks} ticks)");
                         var result = engine.Lease();
                         EnsureEnoughStandbyEngines();//We ensure that there are enough standby engines after the lease
                         return result;
                     }
                 }
-                Console.WriteLine($"Loop took {sw2.ElapsedMilliseconds} ({sw2.ElapsedTicks} ticks)");
                 Thread.Sleep(5);
             }
-            Console.WriteLine("Leasing took " + sw.ElapsedMilliseconds + "ms, but no engine was found");
+            Console.WriteLine($"Leasing took {sw.ElapsedMilliseconds}ms, but no engine was found");
             return null;
         }
 

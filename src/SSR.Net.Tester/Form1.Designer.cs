@@ -82,10 +82,10 @@
             // 
             // Stats
             // 
-            this.Stats.Location = new System.Drawing.Point(708, 16);
+            this.Stats.Location = new System.Drawing.Point(663, 14);
             this.Stats.Multiline = true;
             this.Stats.Name = "Stats";
-            this.Stats.Size = new System.Drawing.Size(444, 548);
+            this.Stats.Size = new System.Drawing.Size(551, 548);
             this.Stats.TabIndex = 4;
             // 
             // button1

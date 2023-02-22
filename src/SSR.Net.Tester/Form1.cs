@@ -62,9 +62,7 @@ namespace SSR.Net.Tester
 
                 }
                 catch (Exception ex)
-                {
-
-                }
+                { }
             });
             t.Start();
         }

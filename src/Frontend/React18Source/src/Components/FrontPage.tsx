@@ -12,7 +12,6 @@ interface Props {
 
 const FrontPage = ({ header, links }: Props) => {
   const [expanded, setExpanded] = useState(false);
-  const result = fetch("https://www.google.com");
   return (
     <div>
       <h1>{header}</h1>

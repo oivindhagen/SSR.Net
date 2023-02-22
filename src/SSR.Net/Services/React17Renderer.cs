@@ -13,8 +13,8 @@ namespace SSR.Net.Services
         private const string SSRHtml = "<div id=\"{0}\">{1}</div>";//id, html
         private const string CSRHtml = "<div id=\"{0}\"></div>";//id
         private const string SSREngineScript = "ReactDOMServer.renderToString(React.createElement({0},{1}))";//componentName, propsAsJson
-        private const string ClientHydrateScript = "<script>ReactDOM.hydrate(React.createElement({0},{1}), {2})</script>";//componentName, propsAsJson, id
-        private const string ClientRenderScript = "<script>ReactDOM.render(React.createElement({0},{1}), {2})</script>";//componentName, propsAsJson, id
+        private const string ClientHydrateScript = "ReactDOM.hydrate(React.createElement({0},{1}), {2})";//componentName, propsAsJson, id
+        private const string ClientRenderScript = "ReactDOM.render(React.createElement({0},{1}), {2})";//componentName, propsAsJson, id
 
         public RenderedComponent RenderComponent(string componentName,
                                                  string propsAsJson,

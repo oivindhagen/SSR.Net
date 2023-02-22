@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SSR.Net.Tester", "SSR.Net.T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SSR.Net.DotNetFramework", "SSR.Net.DotNetFramework\SSR.Net.DotNetFramework.csproj", "{BC78EBD9-57E8-4A15-B5C8-94B8C791069D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SSR.Net.DotNet6", "SSR.Net.DotNet6\SSR.Net.DotNet6.csproj", "{68B36F7E-D36A-4900-AC60-95C55C5DA998}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{BC78EBD9-57E8-4A15-B5C8-94B8C791069D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BC78EBD9-57E8-4A15-B5C8-94B8C791069D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BC78EBD9-57E8-4A15-B5C8-94B8C791069D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{68B36F7E-D36A-4900-AC60-95C55C5DA998}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{68B36F7E-D36A-4900-AC60-95C55C5DA998}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{68B36F7E-D36A-4900-AC60-95C55C5DA998}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{68B36F7E-D36A-4900-AC60-95C55C5DA998}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

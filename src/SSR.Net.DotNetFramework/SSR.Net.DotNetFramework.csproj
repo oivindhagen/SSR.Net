@@ -183,6 +183,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="App_Start\React18FetchPolyfill.js" />
     <Content Include="App_Start\React18TextEncoderPolyfill.js" />
     <Content Include="favicon.ico" />
     <Content Include="Frontend\react17example.js" />

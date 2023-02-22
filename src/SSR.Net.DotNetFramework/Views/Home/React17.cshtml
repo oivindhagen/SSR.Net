@@ -26,6 +26,6 @@
 </head>
 <body>
     @Html.Raw(component.Html)
-    @Html.Raw(component.InitScript)
+    <script>@Html.Raw(component.InitScript)</script>
 </body>
 </html>

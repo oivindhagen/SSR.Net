@@ -13,8 +13,8 @@ namespace SSR.Net.Services
         private const string SSRHtml = "<div id=\"{0}\">{1}</div>";//id, html
         private const string CSRHtml = "<div id=\"{0}\"></div>";//id
         private const string SSREngineScript = "ReactDOMServer.renderToString(React.createElement({0},{1}))";//componentName, propsAsJson
-        private const string ClientHydrateScript = "<script>ReactDOMClient.hydrateRoot({0}, React.createElement({1},{2}))</script>";//id, componentName, propsAsJson
-        private const string ClientRenderScript = "<script>ReactDOMClient.createRoot({0}).render(React.createElement({1},{2}))</script>";//id, componentName, propsAsJson
+        private const string ClientHydrateScript = "ReactDOMClient.hydrateRoot({0}, React.createElement({1},{2}))";//id, componentName, propsAsJson
+        private const string ClientRenderScript = "ReactDOMClient.createRoot({0}).render(React.createElement({1},{2}))";//id, componentName, propsAsJson
 
         public RenderedComponent RenderComponent(string componentName,
                                                  string propsAsJson,
@@ -31,9 +31,6 @@ namespace SSR.Net.Services
             return result;
         }
 
-        private static string CreateId() => 
-            "react_" + Guid.NewGuid().ToString().Replace("-", "");
-
         public RenderedComponent RenderComponentCSR(string componentName, string propsAsJson)
         {
             var id = CreateId();
@@ -43,5 +40,8 @@ namespace SSR.Net.Services
                 InitScript = string.Format(ClientRenderScript, id, componentName, propsAsJson)
             };
         }
+
+        private static string CreateId() => 
+            "react_" + Guid.NewGuid().ToString().Replace("-", "");
     }
 }

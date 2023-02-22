@@ -12,8 +12,8 @@ namespace SSR.Net.Services
 
         private const string CSRHtml = "<div id=\"{0}\"></div>";//id
         private const string SSREngineScript = "renderToString(createSSRApp({0}, {1})).then(html => {2}= '<div id={3}>' + html + '</div>').catch(err => {2}= 'Error ' + err)";//componentName, propsAsJson, resultVariableName, containerId
-        private const string ClientHydrateScript = "<script>createSSRApp({0}, {1}).mount({2})</script>";//componentName, propsAsJson, id
-        private const string ClientRenderScript = "<script>ReactDOMClient.createRoot({0}).render(React.createElement({1},{2}))</script>";//id, componentName, propsAsJson
+        private const string ClientHydrateScript = "createSSRApp({0}, {1}).mount({2})";//componentName, propsAsJson, id
+        private const string ClientRenderScript = "ReactDOMClient.createRoot({0}).render(React.createElement({1},{2}))";//id, componentName, propsAsJson
 
         public RenderedComponent RenderComponent(string componentName,
                                                  string propsAsJson,

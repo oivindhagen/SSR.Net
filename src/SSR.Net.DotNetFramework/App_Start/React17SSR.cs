@@ -18,7 +18,7 @@ namespace SSR.Net.React17DotNetFramework
             Renderer = new React17Renderer(pool);
         }
 
-        public static RenderedComponent Render(string componentName, object props) =>
+        public static RenderedComponent Render(string componentName, object props) => 
             Renderer.RenderComponent(componentName, JsonConvert.SerializeObject(props));
     }
 }

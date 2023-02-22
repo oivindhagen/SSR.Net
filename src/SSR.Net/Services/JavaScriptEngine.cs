@@ -1,10 +1,11 @@
 ﻿using JavaScriptEngineSwitcher.Core;
+using SSR.Net.Models;
 using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SSR.Net.Models
+namespace SSR.Net.Services
 {
     public class JavaScriptEngine : IDisposable
     {
@@ -19,7 +20,7 @@ namespace SSR.Net.Models
         public DateTime InstantiationTime { get; protected set; }
         public DateTime InitializedTime { get; protected set; }
 
-        public  JavaScriptEngine(Func<IJsEngine> createEngine, int maxUsages, int garbageCollectionInterval, int bundleNumber)
+        public JavaScriptEngine(Func<IJsEngine> createEngine, int maxUsages, int garbageCollectionInterval, int bundleNumber)
         {
             _maxUsages = maxUsages;
             BundleNumber = bundleNumber;
@@ -35,7 +36,6 @@ namespace SSR.Net.Models
         }
 
         public virtual JavaScriptEngineState GetState() => _depleted ? JavaScriptEngineState.Depleted : _state;
-
         public virtual bool IsLeased => GetState() == JavaScriptEngineState.Leased;
         public virtual bool IsReady => GetState() == JavaScriptEngineState.Ready;
         public virtual bool IsDepleted => GetState() == JavaScriptEngineState.Depleted;
